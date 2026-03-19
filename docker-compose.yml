@@ -1,0 +1,72 @@
+volumes:
+  postgres-data:
+    driver: local
+  kestra-data:
+    driver: local
+
+services:
+  postgres:
+    image: postgres:18
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: k3str4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  kestra:
+    image: kestra/kestra:latest
+    pull_policy: always
+    stop_grace_period: 6m
+    user: "root"
+    command: server standalone
+    volumes:
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/kestra-wd:/tmp/kestra-wd
+      - ./scripts:/app/scripts
+      - ./sql:/app/sql
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: k3str4
+        kestra:
+          repository:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: "/app/storage"
+          queue:
+            type: postgres
+          tasks:
+            tmp-dir:
+              path: /tmp/kestra-wd/tmp
+            scripts:
+              docker:
+                volumes:
+                  - /run/desktop/mnt/host/c/Users/Nigel/Desktop/CODING/Projets/Jupyter/Projet_10/bottleneck_project/scripts:/app/scripts
+                  - /run/desktop/mnt/host/c/Users/Nigel/Desktop/CODING/Projets/Jupyter/Projet_10/bottleneck_project/sql:/app/sql
+                  - /run/desktop/mnt/host/c/Users/Nigel/Desktop/CODING/Projets/Jupyter/Projet_10/bottleneck_project/data:/app/data
+                  - /run/desktop/mnt/host/c/Users/Nigel/Desktop/CODING/Projets/Jupyter/Projet_10/bottleneck_project/outputs:/app/outputs
+          url: http://localhost:8080/
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      postgres:
+        condition: service_started
