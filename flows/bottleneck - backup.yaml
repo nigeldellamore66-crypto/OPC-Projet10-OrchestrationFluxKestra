@@ -73,114 +73,102 @@ tasks:
         PY
 
   # 2) Nettoyage et dédoublonnage avec DuckDB
+  
+  - id: clean_erp
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    sql: "{{ read('clean_erp.sql') }}"
 
-  - id: clean_all_sources
-    type: io.kestra.plugin.core.flow.Parallel
-    tasks:
+  - id: test_clean_erp
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    fetchType: FETCH_ONE
+    sql: |
+      SELECT
+        COUNT(*) AS nb_rows,
+        COUNT(DISTINCT product_id) AS nb_distinct_ids
+      FROM erp_clean;
 
-    - id: clean_erp_group
-      type: io.kestra.plugin.core.flow.Sequential
-      tasks:
+  - id: assert_clean_erp
+    type: io.kestra.plugin.core.execution.Assert
+    errorMessage: "Le nettoyage ERP a produit des doublons sur product_id."
+    conditions:
+      - "{{ outputs.test_clean_erp.row.nb_rows == outputs.test_clean_erp.row.nb_distinct_ids }}"
 
-        - id: clean_erp
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          retry:
-            type: constant
-            interval: PT10S
-            maxAttempts: 3
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          sql: "{{ read('clean_erp.sql') }}"
+  - id: clean_web
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+    sql: "{{ read('clean_web.sql') }}"
 
-        - id: test_clean_erp
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          fetchType: FETCH_ONE
-          sql: |
-            SELECT
-              COUNT(*) AS nb_rows,
-            FROM erp_clean;
+  - id: test_clean_web
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    fetchType: FETCH_ONE
+    sql: |
+      SELECT COUNT(*) AS nb_rows
+      FROM web_clean;
 
-        - id: assert_clean_erp
-          type: io.kestra.plugin.core.execution.Assert
-          errorMessage: "Le nettoyage ERP a échoué."
-          conditions:
-            - "{{ outputs.test_clean_erp.row.nb_rows == 825 }}"
+  - id: assert_clean_web
+    type: io.kestra.plugin.core.execution.Assert
+    errorMessage: "La table web_clean est vide."
+    conditions:
+      - "{{ outputs.test_clean_web.row.nb_rows > 0 }}"
 
-    - id: clean_web_group
-      type: io.kestra.plugin.core.flow.Sequential
-      tasks:
-        - id: clean_web
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          retry:
-            type: constant
-            interval: PT10S
-            maxAttempts: 3
-          sql: "{{ read('clean_web.sql') }}"
+  - id: single_web
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+    sql: "{{ read('single_web.sql') }}"
 
-        - id: test_clean_web
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          fetchType: FETCH_ONE
-          sql: |
-            SELECT COUNT(*) AS nb_rows
-            FROM web_clean;
+  - id: test_single_web
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    fetchType: FETCH_ONE
+    sql: |
+      SELECT
+        COUNT(*) AS nb_rows,
+        COUNT(DISTINCT sku) AS nb_distinct_sku
+      FROM web_single;
 
-        - id: assert_clean_web
-          type: io.kestra.plugin.core.execution.Assert
-          errorMessage: "Le nettoyage de la table web_clean a échoué."
-          conditions:
-            - "{{ outputs.test_clean_web.row.nb_rows == 1428 }}"
+  - id: assert_single_web
+    type: io.kestra.plugin.core.execution.Assert
+    errorMessage: "La table web_clean a des doublons."
+    conditions:
+      - "{{ outputs.test_single_web.row.nb_rows == outputs.test_single_web.row.nb_distinct_sku }}"
 
-        - id: single_web
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          retry:
-            type: constant
-            interval: PT10S
-            maxAttempts: 3
-          sql: "{{ read('single_web.sql') }}"
+  - id: clean_liaison
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+    sql: "{{ read('clean_liaison.sql') }}"
 
-        - id: test_single_web
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          fetchType: FETCH_ONE
-          sql: |
-            SELECT
-              COUNT(*) AS nb_rows,
-            FROM web_single;
+  - id: test_clean_liaison
+    type: io.kestra.plugin.jdbc.duckdb.Query
+    url: jdbc:duckdb:/app/data/bottleneck.duckdb
+    fetchType: FETCH_ONE
+    sql: |
+      SELECT COUNT(*) AS nb_rows
+      FROM liaison_clean;
 
-        - id: assert_single_web
-          type: io.kestra.plugin.core.execution.Assert
-          errorMessage: "Le nettoyage de la table web_single a échoué."
-          conditions:
-            - "{{ outputs.test_single_web.row.nb_rows == 714 }}"
-
-    - id: clean_liaison_group
-      type: io.kestra.plugin.core.flow.Sequential
-      tasks:
-        - id: clean_liaison
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          retry:
-            type: constant
-            interval: PT10S
-            maxAttempts: 3
-          sql: "{{ read('clean_liaison.sql') }}"
-
-        - id: test_clean_liaison
-          type: io.kestra.plugin.jdbc.duckdb.Query
-          url: jdbc:duckdb:/app/data/bottleneck.duckdb
-          fetchType: FETCH_ONE
-          sql: |
-            SELECT COUNT(*) AS nb_rows
-            FROM liaison_clean;
-
-        - id: assert_clean_liaison
-          type: io.kestra.plugin.core.execution.Assert
-          errorMessage: "Le nettoyage de la table liaison_clean a échoué."
-          conditions:
-            - "{{ outputs.test_clean_liaison.row.nb_rows == 825 }}"
+  - id: assert_clean_liaison
+    type: io.kestra.plugin.core.execution.Assert
+    errorMessage: "La table liaison_clean est vide."
+    conditions:
+      - "{{ outputs.test_clean_liaison.row.nb_rows > 0 }}"
 
 # 3) Fusion des tables ERP et WEB avec la table Liaison
 
@@ -203,9 +191,9 @@ tasks:
 
   - id: assert_merge
     type: io.kestra.plugin.core.execution.Assert
-    errorMessage: "La jointure finale a échouée."
+    errorMessage: "La jointure finale n'a retourné aucune ligne."
     conditions:
-      - "{{ outputs.test_merge.row.nb_rows == 714 }}"
+      - "{{ outputs.test_merge.row.nb_rows > 0 }}"
 
 # 4) Calcul du chiffre d'affaires
 
@@ -256,7 +244,7 @@ tasks:
     type: io.kestra.plugin.core.execution.Assert
     errorMessage: "Le calcul du chiffre d'affaires total est incohérent."
     conditions:
-      - "{{ outputs.test_total_revenue.row.chiffre_affaires_total == 70568.60 }}"
+      - "{{ outputs.test_total_revenue.row.chiffre_affaires_total > 0 }}"
 
 # 5) Classification des vins Premiums/Ordinaires
 

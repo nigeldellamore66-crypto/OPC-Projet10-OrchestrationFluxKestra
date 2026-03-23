@@ -3,5 +3,4 @@ SELECT DISTINCT
     CAST(product_id AS VARCHAR) AS product_id,
     CAST(id_web AS VARCHAR) AS id_web
 FROM read_csv_auto('liaison.csv')
-WHERE product_id IS NOT NULL
-  AND id_web IS NOT NULL;
+WHERE product_id IS NOT NULL;
